@@ -7,8 +7,27 @@ import os
 import cv2
 import time
 import numpy as np
+import torch.nn.functional as F
+from utils.bbox_utils import gen_anchor, bbox_transfor_inv, clip_box, filter_bbox, nms
+from utils.TextProposalConnector import TextProposalConnectorOriented
 
-from pse import decode as pse_decode
+
+def resize_image(img):
+    img_size = img.shape
+    im_size_min = np.min(img_size[0:2])
+    im_size_max = np.max(img_size[0:2])
+
+    im_scale = float(600) / float(im_size_min)
+    if np.round(im_scale * im_size_max) > 1200:
+        im_scale = float(1200) / float(im_size_max)
+    new_h = int(img_size[0] * im_scale)
+    new_w = int(img_size[1] * im_scale)
+
+    new_h = new_h if new_h // 16 == 0 else (new_h // 16 + 1) * 16
+    new_w = new_w if new_w // 16 == 0 else (new_w // 16 + 1) * 16
+
+    re_im = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    return re_im, (new_h / img_size[0], new_w / img_size[1]), (new_h, new_w)
 
 
 class Pytorch_model:
@@ -53,10 +72,8 @@ class Pytorch_model:
         assert os.path.exists(img), 'file is not exists'
         img = cv2.imread(img)
         # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        h, w = img.shape[:2]
+        img, (rh, rw), (new_h, new_w) = resize_image(img)
 
-        scale = long_size / max(h, w)
-        img = cv2.resize(img, None, fx=scale, fy=scale)
         # 将图片由(w,h)变为(1,img_channel,h,w)
         tensor = transforms.ToTensor()(img)
         tensor = tensor.unsqueeze_(0)
@@ -65,16 +82,36 @@ class Pytorch_model:
         with torch.no_grad():
             torch.cuda.synchronize()
             start = time.time()
-            preds = self.net(tensor)
-            preds, boxes_list = pse_decode(preds[0], self.scale)
-            scale = (preds.shape[1] / w, preds.shape[0] / h)
-            # print(scale)
-            # preds, boxes_list = decode(preds,num_pred=-1)
-            if len(boxes_list):
-                boxes_list = boxes_list / scale
+            cls, regr = self.net(tensor)
+            cls_prob = F.softmax(cls, dim=-1).cpu().numpy()
+            regr = regr.cpu().numpy()
+            anchor = gen_anchor((int(new_h / 16), int(new_w / 16)), 16)
+            bbox = bbox_transfor_inv(anchor, regr)
+            bbox = clip_box(bbox, [new_h, new_w])
+
+            fg = np.where(cls_prob[0, :, 1] > 0.7)[0]
+            select_anchor = bbox[fg, :]
+            select_score = cls_prob[0, fg, 1]
+            select_anchor = select_anchor.astype(np.int32)
+
+            keep_index = filter_bbox(select_anchor, 16)
+
+            # nsm
+            select_anchor = select_anchor[keep_index]
+            select_score = select_score[keep_index]
+            select_score = np.reshape(select_score, (select_score.shape[0], 1))
+            nmsbox = np.hstack((select_anchor, select_score))
+            keep = nms(nmsbox, 0.3)
+            select_anchor = select_anchor[keep]
+            select_score = select_score[keep]
+
+            # text line-
+            textConn = TextProposalConnectorOriented()
+            boxes = textConn.get_text_lines(select_anchor, select_score, [new_h,new_w])
             torch.cuda.synchronize()
+            print(boxes)
             t = time.time() - start
-        return preds, boxes_list, t
+        return preds, boxes, t
 
 
 def _get_annotation(label_path):
@@ -116,7 +153,7 @@ if __name__ == '__main__':
     model = Pytorch_model(model_path, net=net, scale=1, gpu_id=0)
     # for i in range(100):
     #     model.predict(img_path)
-    preds, boxes_list,t = model.predict(img_path)
+    preds, boxes_list, t = model.predict(img_path)
     print(boxes_list)
     show_img(preds)
     img = draw_bbox(img_path, boxes_list, color=(0, 0, 255))
