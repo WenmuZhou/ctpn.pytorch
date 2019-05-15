@@ -32,7 +32,7 @@ seed = 2
 # data config
 trainroot = '/mnt/d/zj/dataset/ICD15/train'
 testroot = '/data2/dataset/ICD15/test'
-output_dir = f'output/ctpn_{len(gpu_id.split(","))}_gpu'
+output_dir = f'output/ctpn_{len(gpu_id.split(","))}_gpu1111'
 MAX_LEN = 1200
 MIN_LEN = 600
 # bgr can find from  here: https://github.com/fchollet/deep-learning-models/blob/master/imagenet_utils.py

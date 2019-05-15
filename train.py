@@ -119,8 +119,8 @@ def main():
     if num_gpus > 1:
         model = nn.DataParallel(model)
     model = model.to(device)
-    # dummy_input = torch.autograd.Variable(torch.Tensor(1, 3, 600, 800).to(device))
-    # writer.add_graph(model=model, input_to_model=dummy_input)
+    dummy_input =torch.Tensor(1, 3, 600, 800).to(device)
+    writer.add_graph(model=model, input_to_model=dummy_input)
     criterion = CTPNLoss(device)
     # optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.99)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
@@ -162,4 +162,14 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    eng_prefixes = (
+        "i am ", "i m ",
+        "he is", "he s ",
+        "she is", "she s ",
+        "you are", "you re ",
+        "we are", "we re ",
+        "they are", "they re "
+    )
+    a = 'you are'
+    print(a.startswith(eng_prefixes))
+    # main()

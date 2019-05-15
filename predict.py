@@ -44,6 +44,7 @@ class Pytorch_model:
             self.device = torch.device("cuda:{}".format(gpu_id))
         else:
             self.device = torch.device("cpu")
+
         self.net = torch.load(model_path, map_location=self.device)['state_dict']
         print('device:', self.device)
 
@@ -62,7 +63,7 @@ class Pytorch_model:
             print('load model')
         self.net.eval()
 
-    def predict(self, img: str, long_size: int = 2240):
+    def predict(self, img: str):
         '''
         对传入的图像进行预测，支持图像地址,opecv 读取图片，偏慢
         :param img: 图像地址
@@ -80,7 +81,6 @@ class Pytorch_model:
 
         tensor = tensor.to(self.device)
         with torch.no_grad():
-            torch.cuda.synchronize()
             start = time.time()
             cls, regr = self.net(tensor)
             cls_prob = F.softmax(cls, dim=-1).cpu().numpy()
@@ -108,10 +108,9 @@ class Pytorch_model:
             # text line-
             textConn = TextProposalConnectorOriented()
             boxes = textConn.get_text_lines(select_anchor, select_score, [new_h,new_w])
-            torch.cuda.synchronize()
             print(boxes)
             t = time.time() - start
-        return preds, boxes, t
+        return boxes, t
 
 
 def _get_annotation(label_path):
@@ -132,25 +131,25 @@ def _get_annotation(label_path):
 
 if __name__ == '__main__':
     import config
-    from model import PSENet
+    from model import CTPN_Model
     import matplotlib.pyplot as plt
     from utils.utils import show_img, draw_bbox
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = str('2')
+    # os.environ['CUDA_VISIBLE_DEVICES'] = str('2')
 
-    model_path = 'output/psenet_icd2015_resnet152_author_crop_adam_warm_up_myloss/best_r0.714011_p0.708214_f10.711100.pth'
+    model_path = None
 
     # model_path = 'output/psenet_icd2015_new_loss/final.pth'
     img_id = 10
-    img_path = '/data2/dataset/ICD15/test/img/img_{}.jpg'.format(img_id)
+    img_path = 'D:/zj/dataset/ICD15/train/imgs/img_{}.jpg'.format(img_id)
     # img_path = '0.jpg'
-    label_path = '/data2/dataset/ICD15/test/gt/gt_img_{}.txt'.format(img_id)
+    label_path = 'D:/zj/dataset/ICD15/train/gt/gt_img_{}.txt'.format(img_id)
     label = _get_annotation(label_path)
 
     # img_path = '/data1/gcz/拍照清单数据集_备份/87436979.jpg'
     # 初始化网络
-    net = PSENet(backbone='resnet152', pretrained=False, result_num=config.n)
-    model = Pytorch_model(model_path, net=net, scale=1, gpu_id=0)
+    net = CTPN_Model(pretrained=False)
+    model = Pytorch_model(model_path, net=net, scale=1, gpu_id=None)
     # for i in range(100):
     #     model.predict(img_path)
     preds, boxes_list, t = model.predict(img_path)
