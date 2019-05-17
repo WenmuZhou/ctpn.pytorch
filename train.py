@@ -119,7 +119,7 @@ def main():
     if num_gpus > 1:
         model = nn.DataParallel(model)
     model = model.to(device)
-    dummy_input =torch.Tensor(1, 3, 600, 800).to(device)
+    dummy_input = torch.zeros(1, 3, 600, 800).to(device)
     writer.add_graph(model=model, input_to_model=dummy_input)
     criterion = CTPNLoss(device)
     # optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.99)
@@ -136,7 +136,7 @@ def main():
     all_step = len(train_loader)
     logger.info('train dataset has {} samples,{} in dataloader'.format(train_data.__len__(), all_step))
     epoch = 0
-    best_model = {'loss': 0}
+    best_model = {'loss': float('inf')}
     try:
         for epoch in range(start_epoch, config.epochs):
             start = time.time()
@@ -144,32 +144,22 @@ def main():
                                          writer, logger)
             logger.info('[{}/{}], train_loss: {:.4f}, time: {:.4f}, lr: {}'.format(
                 epoch, config.epochs, train_loss, time.time() - start, lr))
-            if (0.3 < train_loss < 0.4 and epoch % 4 == 0) or train_loss < 0.3:
+            if (0.3 < train_loss < 0.4 and epoch % 1 == 0) or train_loss < 0.3:
                 net_save_path = '{}/PSENet_{}_loss{:.6f}.pth'.format(config.output_dir, epoch, train_loss)
                 save_checkpoint(net_save_path, model, optimizer, epoch, logger)
                 if train_loss < best_model['loss']:
                     best_model['loss'] = train_loss
                     best_model['model'] = net_save_path
+                    shutil.copy(best_model['model'],
+                                '{}/best_loss{:.6f}.pth'.format(config.output_dir, best_model['loss']))
         writer.close()
     except KeyboardInterrupt:
-        save_checkpoint('{}/final.pth'.format(config.output_dir), model, optimizer, epoch, logger)
+        pass
     finally:
         if best_model['model']:
-            shutil.copy(best_model['model'],
-                        '{}/best_r{:.6f}_p{:.6f}_f1{:.6f}.pth'.format(config.output_dir, best_model['recall'],
-                                                                      best_model['precision'], best_model['f1']))
+            shutil.copy(best_model['model'], '{}/best_loss{:.6f}.pth'.format(config.output_dir, best_model['loss']))
             logger.info(best_model)
 
 
 if __name__ == '__main__':
-    eng_prefixes = (
-        "i am ", "i m ",
-        "he is", "he s ",
-        "she is", "she s ",
-        "you are", "you re ",
-        "we are", "we re ",
-        "they are", "they re "
-    )
-    a = 'you are'
-    print(a.startswith(eng_prefixes))
-    # main()
+    main()

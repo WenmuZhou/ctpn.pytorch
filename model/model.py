@@ -40,7 +40,7 @@ class CTPN_Model(nn.Module):
         layers = list(base_model.features)[:-1]
         self.base_layers = nn.Sequential(*layers)  # block5_conv3 output
         self.rpn = BasicConv(in_planes=512, out_planes=512, kernel_size=3, padding=1, bn=False)
-        self.brnn = nn.GRU(512, 128, bidirectional=True, batch_first=True)
+        self.brnn = nn.GRU(512, 128, bidirectional=True, batch_first=False)
         self.lstm_fc = BasicConv(in_planes=256, out_planes=512, kernel_size=1, relu=True, bn=False)
         self.rpn_class = BasicConv(in_planes=512, out_planes=10 * 2, kernel_size=1, relu=False, bn=False)
         self.rpn_regress = BasicConv(in_planes=512, out_planes=10 * 2, kernel_size=1, relu=False, bn=False)
@@ -55,12 +55,12 @@ class CTPN_Model(nn.Module):
         x1 = x.permute(0, 2, 3, 1).contiguous()  # channels last
         b = x1.size()  # batch_size, h, w, c
         x1 = x1.view(b[0] * b[1], b[2], b[3])  # (b,h,w,c) to (b*h,w,c)
-
+        x1 = x1.permute(1, 0, 2)  # (b*h,w,c) to (w,b*h,c)
         x2, _ = self.brnn(x1)
 
         # 进卷积之前需要将通道数缓过来
         xsz = x.size()
-        x3 = x2.view(xsz[0], xsz[2], xsz[3], 256)  # (b, h, w, 256)
+        x3 = x2.contiguous() .view(xsz[0], xsz[2], xsz[3], 256)  # (b, h, w, 256)
         x3 = x3.permute(0, 3, 1, 2).contiguous()  # channels first
 
         x3 = self.lstm_fc(x3)

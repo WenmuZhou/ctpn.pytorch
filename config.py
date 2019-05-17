@@ -30,7 +30,7 @@ checkpoint = ''
 seed = 2
 
 # data config
-trainroot = '/mnt/d/zj/dataset/ICD15/train'
+trainroot = 'D:/zj/dataset/ICD15/train'
 testroot = '/data2/dataset/ICD15/test'
 output_dir = f'output/ctpn_{len(gpu_id.split(","))}_gpu1111'
 MAX_LEN = 1200
