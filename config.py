@@ -11,7 +11,7 @@ epochs = 600
 train_batch_size = 1
 
 # learning_rate
-lr = 1e-3
+lr = 1e-5
 end_lr = 1e-7
 lr_gamma = 0.1
 lr_decay_step = [200,400]
