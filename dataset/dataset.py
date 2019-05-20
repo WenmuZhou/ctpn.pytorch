@@ -110,9 +110,9 @@ def resize(im: np.ndarray, text_polys: np.ndarray, min_len: int, max_len: int) -
     im_size_min = np.min(img_size[0:2])
     im_size_max = np.max(img_size[0:2])
     # 短边缩放到600 并且保证长边不超过1200
-    im_scale = float(600) / float(im_size_min)
-    if np.round(im_scale * im_size_max) > 1200:
-        im_scale = float(1200) / float(im_size_max)
+    im_scale = float(min_len) / float(im_size_min)
+    if np.round(im_scale * im_size_max) > max_len:
+        im_scale = float(max_len) / float(im_size_max)
     new_h = int(img_size[0] * im_scale)
     new_w = int(img_size[1] * im_scale)
     # 保证边长能被16整除
@@ -182,7 +182,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from torchvision import transforms
 
-    train_data = MyDataset(config.trainroot, config.MIN_LEN, config.MAX_LEN,transform=transforms.ToTensor())
+    train_data = MyDataset(config.trainroot, config.MIN_LEN, config.MAX_LEN, transform=transforms.ToTensor())
     train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=False, num_workers=0)
 
     pbar = tqdm(total=len(train_loader))

@@ -55,12 +55,12 @@ class CTPN_Model(nn.Module):
         x1 = x.permute(0, 2, 3, 1).contiguous()  # channels last
         b = x1.size()  # batch_size, h, w, c
         x1 = x1.view(b[0] * b[1], b[2], b[3])  # (b,h,w,c) to (b*h,w,c)
-        x1 = x1.permute(1, 0, 2)  # (b*h,w,c) to (w,b*h,c)
+        # x1 = x1.permute(1, 0, 2)  # (b*h,w,c) to (w,b*h,c)
         x2, _ = self.brnn(x1)
 
         # 进卷积之前需要将通道数缓过来
         xsz = x.size()
-        x3 = x2.contiguous() .view(xsz[0], xsz[2], xsz[3], 256)  # (b, h, w, 256)
+        x3 = x2.view(xsz[0], xsz[2], xsz[3], 256)  # (b, h, w, 256)
         x3 = x3.permute(0, 3, 1, 2).contiguous()  # channels first
 
         x3 = self.lstm_fc(x3)

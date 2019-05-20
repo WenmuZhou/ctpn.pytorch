@@ -12,26 +12,28 @@ from utils.bbox_utils import gen_anchor, bbox_transfor_inv, clip_box, filter_bbo
 from utils.TextProposalConnector import TextProposalConnectorOriented
 
 
-def resize_image(img):
-    img_size = img.shape
+def resize1(im: np.ndarray, min_len: int = 600, max_len: int = 1200) -> np.ndarray:
+    img_size = im.shape
+
+    # 图片缩放
     im_size_min = np.min(img_size[0:2])
     im_size_max = np.max(img_size[0:2])
-
-    im_scale = float(600) / float(im_size_min)
-    if np.round(im_scale * im_size_max) > 1200:
-        im_scale = float(1200) / float(im_size_max)
+    # 短边缩放到600 并且保证长边不超过1200
+    im_scale = float(min_len) / float(im_size_min)
+    if np.round(im_scale * im_size_max) > max_len:
+        im_scale = float(max_len) / float(im_size_max)
     new_h = int(img_size[0] * im_scale)
     new_w = int(img_size[1] * im_scale)
-
+    # 保证边长能被16整除
     new_h = new_h if new_h // 16 == 0 else (new_h // 16 + 1) * 16
     new_w = new_w if new_w // 16 == 0 else (new_w // 16 + 1) * 16
 
-    re_im = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-    return re_im, (new_h / img_size[0], new_w / img_size[1]), (new_h, new_w)
+    re_im = cv2.resize(im, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    return re_im
 
 
 class Pytorch_model:
-    def __init__(self, model_path, net, scale, gpu_id=None):
+    def __init__(self, model_path, net, gpu_id=None):
         '''
         初始化pytorch模型
         :param model_path: 模型地址(可以是模型的参数或者参数和计算图一起保存的文件)
@@ -39,7 +41,6 @@ class Pytorch_model:
         :param img_channel: 图像的通道数: 1,3
         :param gpu_id: 在哪一块gpu上运行
         '''
-        self.scale = scale
         if gpu_id is not None and isinstance(gpu_id, int) and torch.cuda.is_available():
             self.device = torch.device("cuda:{}".format(gpu_id))
         else:
@@ -51,7 +52,6 @@ class Pytorch_model:
         if net is not None:
             # 如果网络计算图和参数是分开保存的，就执行参数加载
             net = net.to(self.device)
-            net.scale = scale
             try:
                 sk = {}
                 for k in self.net:
@@ -70,18 +70,19 @@ class Pytorch_model:
         :param is_numpy:
         :return:
         '''
+        prob_thresh = 0.5
         assert os.path.exists(img), 'file is not exists'
-        img = cv2.imread(img)
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img, (rh, rw), (new_h, new_w) = resize_image(img)
-
-        # 将图片由(w,h)变为(1,img_channel,h,w)
-        tensor = transforms.ToTensor()(img)
+        image = cv2.imread(img_path)
+        h, w = image.shape[:2]
+        image = resize1(image, min_len=600, max_len=1200)
+        new_h, new_w = image.shape[:2]
+        # image = image.astype(np.float32) - config.IMAGE_MEAN
+        tensor = transforms.ToTensor()(image)
         tensor = tensor.unsqueeze_(0)
 
-        tensor = tensor.to(self.device)
         with torch.no_grad():
             start = time.time()
+            tensor = tensor.to(self.device)
             cls, regr = self.net(tensor)
             cls_prob = F.softmax(cls, dim=-1).cpu().numpy()
             regr = regr.cpu().numpy()
@@ -89,7 +90,7 @@ class Pytorch_model:
             bbox = bbox_transfor_inv(anchor, regr)
             bbox = clip_box(bbox, [new_h, new_w])
 
-            fg = np.where(cls_prob[0, :, 1] > 0.7)[0]
+            fg = np.where(cls_prob[0, :, 1] > prob_thresh)[0]
             select_anchor = bbox[fg, :]
             select_score = cls_prob[0, fg, 1]
             select_anchor = select_anchor.astype(np.int32)
@@ -105,12 +106,13 @@ class Pytorch_model:
             select_anchor = select_anchor[keep]
             select_score = select_score[keep]
 
-            # text line-
             textConn = TextProposalConnectorOriented()
-            boxes = textConn.get_text_lines(select_anchor, select_score, [new_h,new_w])
-            print(boxes)
+            scale = (new_w / w, new_h / h)
+            text = textConn.get_text_lines(select_anchor, select_score, [new_h, new_w], scale)
+            # print(scale)
+            # preds, boxes_list = decode(preds,num_pred=-1)
             t = time.time() - start
-        return boxes, t
+        return text, t
 
 
 def _get_annotation(label_path):
@@ -133,14 +135,13 @@ if __name__ == '__main__':
     import config
     from model import CTPN_Model
     import matplotlib.pyplot as plt
-    from utils.utils import show_img, draw_bbox
+    from utils.utils import show_img, draw_bbox, draw_anchor
 
     # os.environ['CUDA_VISIBLE_DEVICES'] = str('2')
 
-    model_path = None
+    model_path = 'output/PSENet_298_loss0.001575.pth'
 
-    # model_path = 'output/psenet_icd2015_new_loss/final.pth'
-    img_id = 10
+    img_id = 1
     img_path = 'D:/zj/dataset/ICD15/train/imgs/img_{}.jpg'.format(img_id)
     # img_path = '0.jpg'
     label_path = 'D:/zj/dataset/ICD15/train/gt/gt_img_{}.txt'.format(img_id)
@@ -149,15 +150,14 @@ if __name__ == '__main__':
     # img_path = '/data1/gcz/拍照清单数据集_备份/87436979.jpg'
     # 初始化网络
     net = CTPN_Model(pretrained=False)
-    model = Pytorch_model(model_path, net=net, scale=1, gpu_id=None)
+    model = Pytorch_model(model_path, net=net, gpu_id=None)
     # for i in range(100):
     #     model.predict(img_path)
-    preds, boxes_list, t = model.predict(img_path)
+    boxes_list, t = model.predict(img_path)
     print(boxes_list)
-    show_img(preds)
     img = draw_bbox(img_path, boxes_list, color=(0, 0, 255))
     cv2.imwrite('result.jpg', img)
     # img = draw_bbox(img, label,color=(0,0,255))
-    show_img(img, color=True)
+    show_img(img[:, :, ::-1], color=True)
 
     plt.show()

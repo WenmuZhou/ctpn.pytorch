@@ -2,6 +2,8 @@
 # @Time    : 2019/5/10 17:02
 # @Author  : zhoujun
 import numpy as np
+
+
 # for predict
 class Graph:
     def __init__(self, graph):
@@ -129,7 +131,7 @@ class TextProposalConnectorOriented:
         p = np.poly1d(np.polyfit(X, Y, 1))
         return p(x1), p(x2)
 
-    def get_text_lines(self, text_proposals, scores, im_size):
+    def get_text_lines(self, text_proposals, scores, im_size, scale):
         """
         text_proposals:boxes
 
@@ -168,8 +170,7 @@ class TextProposalConnectorOriented:
             height = np.mean((text_line_boxes[:, 3] - text_line_boxes[:, 1]))  # 小框平均高度
             text_lines[index, 7] = height + 2.5
 
-        text_recs = np.zeros((len(text_lines), 9), np.float)
-        index = 0
+        text_recs = []
         for line in text_lines:
             b1 = line[6] - line[7] / 2  # 根据高度和文本行中心线，求取文本行上下两条线的b值
             b2 = line[6] + line[7] / 2
@@ -177,10 +178,10 @@ class TextProposalConnectorOriented:
             y1 = line[5] * line[0] + b1  # 左上
             x2 = line[2]
             y2 = line[5] * line[2] + b1  # 右上
-            x3 = line[0]
-            y3 = line[5] * line[0] + b2  # 左下
-            x4 = line[2]
-            y4 = line[5] * line[2] + b2  # 右下
+            x3 = line[2]
+            y3 = line[5] * line[2] + b2  # 右下
+            x4 = line[0]
+            y4 = line[5] * line[0] + b2  # 左下
             disX = x2 - x1
             disY = y2 - y1
             width = np.sqrt(disX * disX + disY * disY)  # 文本行宽度
@@ -199,15 +200,5 @@ class TextProposalConnectorOriented:
                 y2 += y
                 x3 -= x
                 y3 -= y
-            text_recs[index, 0] = x1
-            text_recs[index, 1] = y1
-            text_recs[index, 2] = x2
-            text_recs[index, 3] = y2
-            text_recs[index, 4] = x3
-            text_recs[index, 5] = y3
-            text_recs[index, 6] = x4
-            text_recs[index, 7] = y4
-            text_recs[index, 8] = line[4]
-            index = index + 1
-
+            text_recs.append([np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]]) / scale, line[4]])
         return text_recs

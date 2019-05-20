@@ -16,17 +16,34 @@ def show_img(imgs: np.ndarray, color=True):
         plt.imshow(img, cmap=None if color else 'gray')
 
 
-def draw_bbox(img_path, result, color=(255, 0, 0),thickness=2):
+def draw_bbox(img_path, result, color=(255, 0, 0), thickness=2):
     if isinstance(img_path, str):
         img_path = cv2.imread(img_path)
         # img_path = cv2.cvtColor(img_path, cv2.COLOR_BGR2RGB)
     img_path = img_path.copy()
     for point in result:
-        point = point.astype(int)
+        score = point[-1]
+        point = point[0].astype(int)
+        print(point)
         cv2.line(img_path, tuple(point[0]), tuple(point[1]), color, thickness)
         cv2.line(img_path, tuple(point[1]), tuple(point[2]), color, thickness)
         cv2.line(img_path, tuple(point[2]), tuple(point[3]), color, thickness)
         cv2.line(img_path, tuple(point[3]), tuple(point[0]), color, thickness)
+        cv2.putText(img_path, f'{score:.2f}', tuple(point[0]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    return img_path
+
+
+def draw_anchor(img_path, anchor, color=(255, 0, 0), thickness=2):
+    if isinstance(img_path, str):
+        img_path = cv2.imread(img_path)
+        # img_path = cv2.cvtColor(img_path, cv2.COLOR_BGR2RGB)
+    img_path = img_path.copy()
+    for an in anchor:
+        x1, y1, x2, y2 = an
+        cv2.line(img_path, (x1, y1), (x2, y1), color, thickness)
+        cv2.line(img_path, (x2, y1), (x2, y2), color, thickness)
+        cv2.line(img_path, (x2, y2), (x1, y2), color, thickness)
+        cv2.line(img_path, (x1, y2), (x1, y1), color, thickness)
     return img_path
 
 
@@ -82,4 +99,5 @@ def exe_time(func):
         back = func(*args, **args2)
         print("{} cost {:.3f}s".format(func.__name__, time.time() - t0))
         return back
+
     return newFunc

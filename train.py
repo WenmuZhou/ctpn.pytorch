@@ -149,6 +149,8 @@ def main():
                 save_checkpoint(net_save_path, model, optimizer, epoch, logger)
                 if train_loss < best_model['loss']:
                     best_model['loss'] = train_loss
+                    if 'model' in best_model:
+                        os.remove(best_model['model'])
                     best_model['model'] = net_save_path
                     shutil.copy(best_model['model'],
                                 '{}/best_loss{:.6f}.pth'.format(config.output_dir, best_model['loss']))
