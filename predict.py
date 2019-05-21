@@ -63,7 +63,7 @@ class Pytorch_model:
             print('load model')
         self.net.eval()
 
-    def predict(self, img: str):
+    def predict(self, img_path: str):
         '''
         对传入的图像进行预测，支持图像地址,opecv 读取图片，偏慢
         :param img: 图像地址
@@ -71,7 +71,7 @@ class Pytorch_model:
         :return:
         '''
         prob_thresh = 0.5
-        assert os.path.exists(img), 'file is not exists'
+        assert os.path.exists(img_path), 'file is not exists'
         image = cv2.imread(img_path)
         h, w = image.shape[:2]
         image = resize1(image, min_len=600, max_len=1200)

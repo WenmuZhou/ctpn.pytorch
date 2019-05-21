@@ -24,7 +24,6 @@ def draw_bbox(img_path, result, color=(255, 0, 0), thickness=2):
     for point in result:
         score = point[-1]
         point = point[0].astype(int)
-        print(point)
         cv2.line(img_path, tuple(point[0]), tuple(point[1]), color, thickness)
         cv2.line(img_path, tuple(point[1]), tuple(point[2]), color, thickness)
         cv2.line(img_path, tuple(point[2]), tuple(point[3]), color, thickness)
